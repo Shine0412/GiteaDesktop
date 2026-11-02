@@ -5,7 +5,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 const isDesktop = !!(window.desktop && window.desktop.isDesktop);
 
 const state = {
-  repos: JSON.parse(localStorage.getItem('gd-repos') || '[]'),
+  repos: [],
   current: null,
   status: null,
   selectedFile: null,
@@ -16,7 +16,11 @@ const state = {
 };
 
 function saveRepos() {
-  localStorage.setItem('gd-repos', JSON.stringify(state.repos));
+  api('/api/state', { body: { repos: state.repos } }).catch(() => {});
+}
+
+function saveUiPatch(patch) {
+  api('/api/state', { body: patch }).catch(() => {});
 }
 
 /* ---------- API ---------- */
@@ -45,22 +49,22 @@ function esc(s) {
 }
 
 /* ---------- 主题 ---------- */
-function applyTheme(theme) {
+function applyTheme(theme, persist = true) {
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem('gd-theme', theme);
+  localStorage.setItem('gd-theme', theme); // 供下次启动防闪烁
+  if (persist) saveUiPatch({ theme });
   $('#btn-theme').textContent = theme === 'dark' ? '☀' : '🌙';
 }
 $('#btn-theme').addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
-applyTheme(localStorage.getItem('gd-theme') || 'light');
+applyTheme(localStorage.getItem('gd-theme') || 'light', false);
 
-/* ---------- 可拖拽分隔线 ---------- */
+/* ---------- 可拖拽分隔线（宽度保存到服务端） ---------- */
+let savedWidths = {};
 $$('.divider').forEach((divider) => {
   const panel = $(divider.dataset.panel);
   if (!panel) return;
-  const saved = localStorage.getItem(divider.dataset.key);
-  if (saved) panel.style.width = saved;
   divider.addEventListener('mousedown', (e) => {
     e.preventDefault();
     divider.classList.add('dragging');
@@ -73,7 +77,8 @@ $$('.divider').forEach((divider) => {
     }
     function up() {
       divider.classList.remove('dragging');
-      localStorage.setItem(divider.dataset.key, panel.style.width);
+      savedWidths[divider.dataset.key] = panel.style.width;
+      saveUiPatch({ widths: savedWidths });
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
     }
@@ -81,6 +86,14 @@ $$('.divider').forEach((divider) => {
     document.addEventListener('mouseup', up);
   });
 });
+
+function restoreWidths() {
+  $$('.divider').forEach((divider) => {
+    const panel = $(divider.dataset.panel);
+    const w = savedWidths[divider.dataset.key];
+    if (panel && w) panel.style.width = w;
+  });
+}
 
 /* ---------- 侧栏仓库列表（含操作菜单） ---------- */
 function renderRepoList() {
@@ -207,6 +220,7 @@ async function openRepo(repoPath) {
     renderStatus();
     loadConfig();
     loadStashCount();
+    saveUiPatch({ lastRepo: repoPath });
     const activeTab = document.querySelector('.panel-mid .tabs .tab.active')?.dataset.tab;
     const showDetail = activeTab === 'history' || activeTab === 'stashes';
     $('#panel-detail').classList.toggle('hidden', !showDetail);
@@ -845,5 +859,20 @@ setInterval(async () => {
   }
 }, 30000);
 
-/* ---------- 启动 ---------- */
-renderRepoList();
+/* ---------- 启动：从服务端恢复界面状态 ---------- */
+(async function boot() {
+  try {
+    const s = await api('/api/state');
+    state.repos = s.repos || [];
+    savedWidths = s.widths || {};
+    restoreWidths();
+    if (s.theme) applyTheme(s.theme, false);
+    renderRepoList();
+    // 恢复上次打开的仓库
+    if (s.lastRepo && state.repos.some((r) => r.path === s.lastRepo)) {
+      openRepo(s.lastRepo);
+    }
+  } catch {
+    renderRepoList();
+  }
+})();

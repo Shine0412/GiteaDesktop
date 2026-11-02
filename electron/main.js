@@ -53,12 +53,19 @@ app.whenReady().then(() => {
     shell.showItemInFolder(targetPath);
   });
 
-  // 端口传 0：让系统分配空闲端口，避免冲突
-  server = expressApp.listen(0, '127.0.0.1', () => {
-    const port = server.address().port;
-    console.log('GITEA_DESKTOP_PORT=' + port);
-    createWindow(port);
-  });
+  // 优先使用固定端口（localStorage 等按源隔离的存储依赖端口稳定），冲突时递增
+  function startServer(port) {
+    const s = expressApp.listen(port, '127.0.0.1', () => {
+      console.log('GITEA_DESKTOP_PORT=' + port);
+      server = s;
+      createWindow(port);
+    });
+    s.on('error', (e) => {
+      if (e.code === 'EADDRINUSE') startServer(port + 1);
+      else throw e;
+    });
+  }
+  startServer(7100);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0 && server) {

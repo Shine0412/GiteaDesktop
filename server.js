@@ -2,6 +2,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { simpleGit } = require('simple-git');
 
 const app = express();
@@ -382,6 +383,33 @@ app.post('/api/publish', handle(async (req, res) => {
   const st = await g.status();
   await g.push(['-u', 'origin', st.current]);
   res.json({ ok: true });
+}));
+
+// ---------- 界面状态持久化（仓库列表、面板宽度、主题、上次打开的仓库） ----------
+const STATE_DIR = path.join(os.homedir(), '.gitea-desktop');
+const STATE_FILE = path.join(STATE_DIR, 'config.json');
+
+function loadState() {
+  try {
+    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function saveState(patch) {
+  const next = { ...loadState(), ...patch };
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(STATE_FILE, JSON.stringify(next, null, 2));
+  return next;
+}
+
+app.get('/api/state', handle(async (req, res) => {
+  res.json(loadState());
+}));
+
+app.post('/api/state', handle(async (req, res) => {
+  res.json(saveState(req.body || {}));
 }));
 
 // ---------- 启动 ----------
