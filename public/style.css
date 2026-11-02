@@ -1,19 +1,57 @@
-/* GitHub Primer 风格（亮色） */
+/* ===== 主题变量 ===== */
 :root {
   --fg-default: #1f2328;
   --fg-muted: #59636e;
   --bg-default: #ffffff;
   --bg-muted: #f6f8fa;
   --bg-inset: #eff1f3;
+  --bg-header: #f0f2f5;
   --border: #d1d9e0;
   --accent: #0969da;
-  --accent-fg: #ffffff;
   --success: #1a7f37;
   --danger: #d1242f;
-  --header-bg: #f6f8fa;
   --btn-bg: #f6f8fa;
   --primary-bg: #1f883d;
   --primary-hover: #1a7f37;
+  --shadow: rgba(140,149,159,.2);
+  --selected-bg: #ddf4ff;
+  --diff-add-bg: #dafbe1;
+  --diff-add-fg: #116329;
+  --diff-del-bg: #ffebe9;
+  --diff-del-fg: #82071e;
+  --badge-M-fg: #9a6700; --badge-M-bg: #fff8c5;
+  --badge-A-fg: #1a7f37; --badge-A-bg: #dafbe1;
+  --badge-D-fg: #d1242f; --badge-D-bg: #ffebe9;
+  --badge-U-fg: #0969da; --badge-U-bg: #ddf4ff;
+  --header-btn-bg: transparent;
+  --header-btn-hover: rgba(31,35,40,.08);
+}
+
+html[data-theme="dark"] {
+  --fg-default: #e6edf3;
+  --fg-muted: #9198a1;
+  --bg-default: #0d1117;
+  --bg-muted: #161b22;
+  --bg-inset: #21262d;
+  --bg-header: #010409;
+  --border: #3d444d;
+  --accent: #4493f8;
+  --success: #3fb950;
+  --danger: #f85149;
+  --btn-bg: #21262d;
+  --primary-bg: #238636;
+  --primary-hover: #2ea043;
+  --shadow: rgba(1,4,9,.6);
+  --selected-bg: #1f2f47;
+  --diff-add-bg: rgba(46,160,67,.22);
+  --diff-add-fg: #7ee787;
+  --diff-del-bg: rgba(248,81,73,.18);
+  --diff-del-fg: #ffa198;
+  --badge-M-fg: #e3b341; --badge-M-bg: rgba(187,128,9,.2);
+  --badge-A-fg: #3fb950; --badge-A-bg: rgba(46,160,67,.2);
+  --badge-D-fg: #f85149; --badge-D-bg: rgba(248,81,73,.15);
+  --badge-U-fg: #4493f8; --badge-U-bg: rgba(56,139,253,.15);
+  --header-btn-hover: rgba(230,237,243,.1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,27 +69,49 @@ body {
 
 .hidden { display: none !important; }
 
-/* ---------- 顶栏 ---------- */
+/* ===== 顶栏（GitHub Desktop 风格） ===== */
 .header {
-  background: var(--header-bg);
+  background: var(--bg-header);
   border-bottom: 1px solid var(--border);
-  padding: 10px 16px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
 }
-.header-inner { display: flex; align-items: center; gap: 10px; }
-.logo { color: var(--fg-default); }
-.header-title { font-size: 15px; color: var(--fg-default); }
+.header-title { font-size: 14px; }
 .header-spacer { flex: 1; }
-.header-repo { color: var(--fg-muted); font-size: 13px; }
 
-/* ---------- 布局 ---------- */
+.header-repo-controls { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
+
+.header-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; font-size: 13px;
+  color: var(--fg-default); background: var(--header-btn-bg);
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+}
+.header-btn:hover { background: var(--header-btn-hover); }
+.header-btn-label { color: var(--fg-muted); font-size: 12px; }
+.header-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+.header-btn-primary:hover { filter: brightness(1.1); background: var(--accent); }
+.header-btn-primary .counter { background: rgba(255,255,255,.25); border: none; color: #fff; }
+.header-btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+
+.header-icon-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--fg-muted); font-size: 15px; padding: 5px 8px; border-radius: 6px;
+}
+.header-icon-btn:hover { background: var(--header-btn-hover); color: var(--fg-default); }
+
+/* ===== 布局 ===== */
 .layout { flex: 1; display: flex; overflow: hidden; }
 
-/* ---------- 侧栏 ---------- */
+/* ===== 侧栏 ===== */
 .sidebar {
-  width: 260px;
-  min-width: 260px;
+  width: 240px;
+  min-width: 240px;
   border-right: 1px solid var(--border);
-  background: var(--bg-default);
+  background: var(--bg-muted);
   display: flex;
   flex-direction: column;
 }
@@ -59,59 +119,139 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 14px;
   font-weight: 600;
   border-bottom: 1px solid var(--border);
 }
 .repo-list { flex: 1; overflow-y: auto; }
-.repo-item {
-  padding: 10px 16px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--bg-muted);
-}
-.repo-item:hover { background: var(--bg-muted); }
-.repo-item.active { background: var(--bg-inset); border-left: 3px solid var(--accent); }
+.repo-item { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.repo-item:hover { background: var(--bg-inset); }
+.repo-item.active { background: var(--bg-default); border-left: 3px solid var(--accent); }
 .repo-item .name { font-weight: 600; }
 .repo-item .meta { font-size: 12px; color: var(--fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty-hint { padding: 20px 16px; color: var(--fg-muted); font-size: 13px; }
 
-/* ---------- 主区域 ---------- */
-.main { flex: 1; overflow-y: auto; padding: 16px 24px; background: var(--bg-default); }
-.welcome { max-width: 480px; margin: 80px auto; text-align: center; color: var(--fg-muted); }
+/* ===== 欢迎页 ===== */
+.welcome-wrap { flex: 1; display: flex; align-items: center; justify-content: center; }
+.welcome { max-width: 460px; text-align: center; color: var(--fg-muted); }
+.welcome img { margin-bottom: 12px; }
 .welcome h2 { color: var(--fg-default); margin-bottom: 8px; }
+.welcome-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
 
-.repo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.repo-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
-.repo-title .octicon { color: var(--fg-muted); }
-.label {
-  font-size: 12px; font-weight: 500; color: var(--fg-muted);
-  border: 1px solid var(--border); border-radius: 2em; padding: 0 8px; line-height: 20px;
+/* ===== 工作区：中栏 + 右栏 ===== */
+.workspace { flex: 1; display: flex; overflow: hidden; }
+
+.panel-mid {
+  width: 400px;
+  min-width: 400px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-default);
+  display: flex;
+  flex-direction: column;
 }
-.repo-actions { display: flex; gap: 8px; }
 
-.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.branch-picker { position: relative; }
-
-/* 标签页（GitHub underline nav） */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 8px; flex-shrink: 0; }
 .tab {
-  background: none; border: none; padding: 8px 14px; cursor: pointer;
+  background: none; border: none; padding: 9px 14px; cursor: pointer;
   font-size: 14px; color: var(--fg-default); border-bottom: 2px solid transparent;
   margin-bottom: -1px;
 }
 .tab:hover { border-bottom-color: var(--border); }
 .tab.active { border-bottom-color: #fd8c73; font-weight: 600; }
 
+.tab-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.file-list-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid var(--border); background: var(--bg-muted); flex-shrink: 0;
+}
+.stash-head-title { font-size: 13px; font-weight: 600; }
+
+.file-list, .commit-list { flex: 1; overflow-y: auto; }
+
+.file-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; cursor: pointer; border-bottom: 1px solid var(--bg-muted);
+}
+.file-item:hover { background: var(--bg-muted); }
+.file-item.selected { background: var(--selected-bg); }
+.file-item .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.file-item .fpath { color: var(--fg-muted); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; flex-shrink: 0; }
+.badge-M { color: var(--badge-M-fg); background: var(--badge-M-bg); }
+.badge-A { color: var(--badge-A-fg); background: var(--badge-A-bg); }
+.badge-D { color: var(--badge-D-fg); background: var(--badge-D-bg); }
+.badge-U { color: var(--badge-U-fg); background: var(--badge-U-bg); }
+.badge-staged { color: var(--badge-A-fg); background: var(--badge-A-bg); }
+
+.discard-btn {
+  background: none; border: none; cursor: pointer; color: var(--fg-muted);
+  padding: 0 4px; border-radius: 4px; opacity: 0; flex-shrink: 0; font-size: 12px;
+}
+.file-item:hover .discard-btn { opacity: 1; }
+.discard-btn:hover { color: var(--danger); background: var(--diff-del-bg); }
+
+.commit-area {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-muted); flex-shrink: 0;
+}
+.commit-by { font-size: 12px; color: var(--fg-muted); }
+
+/* ===== 右侧面板 ===== */
+.panel-right { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-default); }
+.right-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.right-pane-head {
+  padding: 10px 16px; font-size: 13px; font-weight: 600;
+  border-bottom: 1px solid var(--border); background: var(--bg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;
+}
+
+.diff-view {
+  flex: 1; padding: 10px 0; margin: 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px; line-height: 1.6; overflow: auto; white-space: pre;
+  background: var(--bg-default);
+}
+.diff-hint { color: var(--fg-muted); padding: 12px 16px; display: block; font-family: inherit; }
+.diff-line { display: block; padding: 0 16px; }
+.diff-add { background: var(--diff-add-bg); color: var(--diff-add-fg); }
+.diff-del { background: var(--diff-del-bg); color: var(--diff-del-fg); }
+.diff-hunk { color: var(--fg-muted); background: var(--bg-muted); }
+
+/* ===== 历史提交 ===== */
+.commit-item { display: flex; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--bg-muted); cursor: pointer; align-items: center; }
+.commit-item:hover { background: var(--bg-muted); }
+.commit-item.selected { background: var(--selected-bg); }
+.commit-dot { color: var(--fg-muted); font-size: 10px; }
+.commit-info { flex: 1; min-width: 0; }
+.commit-msg { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commit-meta { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
+.commit-hash { font-family: ui-monospace, monospace; font-size: 12px; color: var(--fg-muted); flex-shrink: 0; }
+
+.commit-detail { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.commit-detail-head { padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.commit-detail-head .commit-msg { font-size: 15px; white-space: normal; }
+.commit-body { margin-top: 6px; font-size: 13px; white-space: pre-wrap; font-family: inherit; }
+.commit-detail-files { border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.commit-detail .diff-view { flex: 1; min-height: 160px; }
+
+/* ===== 贮藏说明 ===== */
+.stash-help { padding: 16px; color: var(--fg-muted); font-size: 13px; line-height: 1.8; }
+.stash-pop { flex-shrink: 0; }
+
+/* ===== 计数徽章 ===== */
 .counter {
   display: inline-block; min-width: 18px; padding: 0 6px;
   font-size: 12px; font-weight: 500; line-height: 18px;
   color: var(--fg-muted); background: var(--bg-inset);
-  border: 1px solid rgba(209,217,224,.7); border-radius: 2em; text-align: center;
+  border: 1px solid var(--border); border-radius: 2em; text-align: center;
 }
 
-/* ---------- 按钮 ---------- */
+/* ===== 按钮 ===== */
 .btn {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 5px 12px; font-size: 14px; font-weight: 500;
   color: var(--fg-default); background: var(--btn-bg);
   border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
@@ -121,123 +261,22 @@ body {
 .btn-sm { padding: 2px 10px; font-size: 12px; }
 .btn-primary { background: var(--primary-bg); border-color: rgba(31,35,40,.15); color: #fff; }
 .btn-primary:hover { background: var(--primary-hover); }
-.btn-block { width: 100%; justify-content: center; margin-top: 8px; }
+.btn-block { width: 100%; margin-top: 2px; }
+.btn-danger { background: var(--danger); border-color: rgba(31,35,40,.15); color: #fff; }
+.btn-danger:hover { filter: brightness(.9); }
+.btn-danger:disabled { opacity: .5; }
 
-/* ---------- 改动页 ---------- */
-.changes-layout { display: flex; gap: 16px; align-items: flex-start; }
-.changes-left { width: 360px; min-width: 360px; }
-.changes-right { flex: 1; min-width: 0; }
-
-.box { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-default); margin-bottom: 16px; overflow: hidden; }
-.box-header {
-  padding: 10px 14px; background: var(--bg-muted);
-  border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px;
-}
-
-#file-list { max-height: 320px; overflow-y: auto; }
-.file-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; cursor: pointer; border-bottom: 1px solid var(--bg-muted);
-}
-.file-item:hover { background: var(--bg-muted); }
-.file-item.selected { background: #ddf4ff; }
-.file-item .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.file-item .fpath { color: var(--fg-muted); font-size: 12px; }
-.badge {
-  font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
-}
-.badge-M { color: #9a6700; background: #fff8c5; }
-.badge-A { color: var(--success); background: #dafbe1; }
-.badge-D { color: var(--danger); background: #ffebe9; }
-.badge-U { color: var(--accent); background: #ddf4ff; }
-.badge-staged { color: var(--success); background: #dafbe1; }
-
-.commit-box { display: flex; gap: 10px; padding: 14px; }
-.commit-avatar {
-  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-  background: var(--bg-inset); display: flex; align-items: center; justify-content: center;
-  color: var(--fg-muted);
-}
-.commit-form { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-
+/* ===== 输入 ===== */
 input[type="text"], textarea {
   width: 100%; padding: 6px 10px; font-size: 14px; font-family: inherit;
+  color: var(--fg-default);
   border: 1px solid var(--border); border-radius: 6px; background: var(--bg-default);
 }
 input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
 textarea { resize: vertical; }
+input[type="checkbox"] { accent-color: var(--accent); }
 
-/* ---------- diff 视图 ---------- */
-.diff-box { min-height: 300px; }
-.diff-view {
-  padding: 12px 0; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12px; line-height: 1.6; overflow-x: auto; white-space: pre; min-height: 200px;
-}
-.diff-hint { color: var(--fg-muted); padding: 12px 16px; display: block; }
-.diff-line { display: block; padding: 0 16px; }
-.diff-add { background: #dafbe1; }
-.diff-del { background: #ffebe9; }
-.diff-hunk { color: var(--fg-muted); background: var(--bg-muted); }
-
-/* ---------- 历史页 ---------- */
-.commit-item { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--bg-muted); }
-.commit-item:last-child { border-bottom: none; }
-.commit-dot { color: var(--fg-muted); padding-top: 2px; }
-.commit-info { flex: 1; min-width: 0; }
-.commit-msg { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.commit-meta { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-.commit-hash { font-family: ui-monospace, monospace; font-size: 12px; color: var(--fg-muted); }
-
-/* ---------- 下拉菜单 ---------- */
-.dropdown {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
-  min-width: 240px; background: var(--bg-default);
-  border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(140,149,159,.2);
-}
-.dropdown-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--fg-muted);
-}
-#branch-list { max-height: 240px; overflow-y: auto; }
-.branch-item { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-.branch-item:hover { background: var(--bg-muted); }
-.branch-item.current { font-weight: 600; }
-
-/* ---------- 模态框 ---------- */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(31,35,40,.5);
-  display: flex; align-items: flex-start; justify-content: center; z-index: 100;
-  padding-top: 10vh;
-}
-.modal {
-  width: 480px; background: var(--bg-default);
-  border: 1px solid var(--border); border-radius: 12px;
-  box-shadow: 0 16px 32px rgba(31,35,40,.15); overflow: hidden;
-}
-.modal-sm { width: 360px; }
-.modal-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 16px; font-weight: 600; border-bottom: 1px solid var(--border);
-  background: var(--bg-muted);
-}
-.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--fg-muted); }
-.modal-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; }
-.mtab-panel { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.mtab-panel label { font-size: 13px; font-weight: 600; }
-.modal-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.modal-body label { font-size: 13px; font-weight: 600; }
-
-/* ---------- Toast ---------- */
-.toast {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 200;
-  background: var(--fg-default); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.25);
-}
-.toast.error { background: var(--danger); }
-.toast.success { background: var(--success); }
-
-/* ---------- 仓库列表操作菜单 ---------- */
+/* ===== 仓库列表操作菜单 ===== */
 .repo-row { display: flex; align-items: center; gap: 6px; }
 .repo-text { flex: 1; min-width: 0; }
 .repo-menu-btn {
@@ -247,42 +286,21 @@ textarea { resize: vertical; }
 .repo-item:hover .repo-menu-btn { opacity: 1; }
 .repo-menu-btn:hover { background: var(--bg-inset); color: var(--fg-default); }
 
-.context-menu { min-width: 180px; padding: 4px 0; }
-.menu-item { padding: 7px 14px; cursor: pointer; font-size: 13px; }
-.menu-item:hover { background: var(--bg-muted); }
-.menu-danger { color: var(--danger); }
-
-/* ---------- 输入行（路径 + 浏览按钮） ---------- */
-.input-row { display: flex; gap: 8px; }
-.input-row input { flex: 1; }
-.browse-btn { flex-shrink: 0; }
-
-/* ---------- 文件项操作 ---------- */
-.discard-btn {
-  background: none; border: none; cursor: pointer; color: var(--fg-muted);
-  padding: 0 4px; border-radius: 4px; opacity: 0; flex-shrink: 0; font-size: 12px;
+/* ===== 下拉菜单 ===== */
+.dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  min-width: 240px; background: var(--bg-default);
+  border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 8px 24px var(--shadow);
 }
-.file-item:hover .discard-btn { opacity: 1; }
-.discard-btn:hover { color: var(--danger); background: #ffebe9; }
-
-/* ---------- 提交区 ---------- */
-.commit-by { font-size: 12px; color: var(--fg-muted); }
-
-/* ---------- 历史详情 ---------- */
-.history-layout { display: flex; gap: 16px; align-items: flex-start; }
-.history-list-box { width: 420px; min-width: 420px; }
-.history-detail-box { flex: 1; min-width: 0; }
-.commit-item.selected { background: #ddf4ff; }
-.commit-detail-head { padding: 12px 16px; border-bottom: 1px solid var(--bg-muted); }
-.commit-detail-head .commit-msg { font-size: 15px; }
-.commit-body {
-  margin-top: 6px; font-size: 13px; color: var(--fg-default);
-  white-space: pre-wrap; font-family: inherit;
+.dropdown-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--fg-muted);
 }
-.commit-detail-files { border-bottom: 1px solid var(--bg-muted); }
-.history-detail-box .diff-view { max-height: 400px; overflow: auto; }
-
-/* ---------- 分支删除按钮 ---------- */
+#branch-list { max-height: 240px; overflow-y: auto; }
+.branch-item { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.branch-item:hover { background: var(--bg-muted); }
+.branch-item.current { font-weight: 600; }
 .branch-check { width: 16px; flex-shrink: 0; }
 .branch-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .branch-del {
@@ -290,20 +308,72 @@ textarea { resize: vertical; }
   padding: 0 4px; border-radius: 4px; opacity: 0; font-size: 12px;
 }
 .branch-item:hover .branch-del { opacity: 1; }
-.branch-del:hover { color: var(--danger); background: #ffebe9; }
+.branch-del:hover { color: var(--danger); background: var(--diff-del-bg); }
 
-/* ---------- 设置 ---------- */
+.branch-picker { position: relative; }
+
+.context-menu { min-width: 180px; padding: 4px 0; }
+.menu-item { padding: 7px 14px; cursor: pointer; font-size: 13px; }
+.menu-item:hover { background: var(--bg-muted); }
+.menu-danger { color: var(--danger); }
+
+/* ===== 模态框 ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(1,4,9,.5);
+  display: flex; align-items: flex-start; justify-content: center; z-index: 100;
+  padding-top: 8vh;
+}
+.modal {
+  width: 480px; background: var(--bg-default);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 16px 32px var(--shadow); overflow: hidden;
+}
+.modal-sm { width: 360px; }
+.modal-lg { width: 640px; max-height: 80vh; display: flex; flex-direction: column; }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; font-weight: 600; border-bottom: 1px solid var(--border);
+  background: var(--bg-muted); flex-shrink: 0;
+}
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--fg-muted); }
+.modal-tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 8px; }
+.mtab-panel { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.mtab-panel label { font-size: 13px; font-weight: 600; }
+.modal-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.modal-body label { font-size: 13px; font-weight: 600; }
+
+/* ===== 设置 ===== */
 .settings-section {
   border: 1px solid var(--border); border-radius: 6px;
   padding: 14px; display: flex; flex-direction: column; gap: 8px;
 }
 .settings-section h4 { font-size: 13px; margin-bottom: 2px; }
 
-/* ---------- 危险操作 ---------- */
-.danger-text { color: var(--danger); font-weight: 600; }
-.btn-danger { background: var(--danger); border-color: rgba(31,35,40,.15); color: #fff; }
-.btn-danger:hover { background: #a40e26; }
-.btn-danger:disabled { opacity: .5; }
+/* ===== 使用指南 ===== */
+.help-body { gap: 16px; }
+.help-body h3 { font-size: 14px; margin-bottom: 6px; }
+.help-body ol, .help-body ul { padding-left: 20px; line-height: 1.9; color: var(--fg-default); }
+.help-body li { font-size: 13px; }
+.help-body p { font-size: 13px; line-height: 1.8; color: var(--fg-muted); }
+.help-body code {
+  font-family: ui-monospace, monospace; font-size: 12px;
+  background: var(--bg-inset); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 5px;
+}
 
-/* ---------- 贮藏页按钮 ---------- */
-.stash-pop { flex-shrink: 0; }
+/* ===== 危险操作 ===== */
+.danger-text { color: var(--danger); font-weight: 600; }
+
+/* ===== 输入行 ===== */
+.input-row { display: flex; gap: 8px; }
+.input-row input { flex: 1; }
+.browse-btn { flex-shrink: 0; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 200;
+  background: var(--fg-default); color: var(--bg-default); box-shadow: 0 8px 24px var(--shadow);
+}
+.toast.error { background: var(--danger); color: #fff; }
+.toast.success { background: var(--success); color: #fff; }

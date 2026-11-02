@@ -44,6 +44,17 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/* ---------- 主题 ---------- */
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('gd-theme', theme);
+  $('#btn-theme').textContent = theme === 'dark' ? '☀' : '🌙';
+}
+$('#btn-theme').addEventListener('click', () => {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+applyTheme(localStorage.getItem('gd-theme') || 'light');
+
 /* ---------- 侧栏仓库列表（含操作菜单） ---------- */
 function renderRepoList() {
   const list = $('#repo-list');
@@ -93,12 +104,7 @@ function renderRepoList() {
           else toast('网页版不支持此操作', 'error');
         } else if (act === 'remove') {
           state.repos.splice(idx, 1);
-          if (state.current === repo.path) {
-            state.current = null; state.status = null;
-            $('#main-repo').classList.add('hidden');
-            $('#main-empty').classList.remove('hidden');
-            $('#current-repo-label').textContent = '';
-          }
+          if (state.current === repo.path) showWelcome();
           saveRepos();
           renderRepoList();
           toast('已从列表移除', 'success');
@@ -121,6 +127,15 @@ function closeMenus() {
 }
 document.addEventListener('click', closeMenus);
 
+function showWelcome() {
+  state.current = null;
+  state.status = null;
+  $('#main-repo').classList.add('hidden');
+  $('#main-empty').classList.remove('hidden');
+  $('#repo-controls').classList.add('hidden');
+  $('#btn-refresh').classList.add('hidden');
+}
+
 /* ---------- 删除仓库确认 ---------- */
 let deleteTarget = null;
 function openDeleteModal(repo) {
@@ -139,12 +154,7 @@ $('#btn-confirm-delete').addEventListener('click', async () => {
   try {
     await api('/api/delete-repo', { body: { repo: deleteTarget.path, confirm: $('#delete-confirm').value.trim() } });
     state.repos = state.repos.filter((r) => r.path !== deleteTarget.path);
-    if (state.current === deleteTarget.path) {
-      state.current = null; state.status = null;
-      $('#main-repo').classList.add('hidden');
-      $('#main-empty').classList.remove('hidden');
-      $('#current-repo-label').textContent = '';
-    }
+    if (state.current === deleteTarget.path) showWelcome();
     saveRepos();
     renderRepoList();
     $('#modal-delete').classList.add('hidden');
@@ -163,15 +173,14 @@ async function openRepo(repoPath) {
     state.selectedCommit = null;
     $('#main-empty').classList.add('hidden');
     $('#main-repo').classList.remove('hidden');
-    const name = repoPath.replace(/\\/g, '/').split('/').pop();
-    $('#repo-name').textContent = name;
-    $('#current-repo-label').textContent = repoPath;
+    $('#repo-controls').classList.remove('hidden');
+    $('#btn-refresh').classList.remove('hidden');
     $('#commit-branch').textContent = status.current;
     renderRepoList();
     renderStatus();
     loadConfig();
     loadStashCount();
-    const activeTab = document.querySelector('.tabs .tab.active')?.dataset.tab;
+    const activeTab = document.querySelector('.panel-mid .tabs .tab.active')?.dataset.tab;
     if (activeTab === 'history') loadHistory();
     if (activeTab === 'stashes') loadStashes();
   } catch (e) {
@@ -209,9 +218,21 @@ function renderStatus() {
   const st = state.status;
   if (!st) return;
 
-  const ab = $('#ahead-badge'), bb = $('#behind-badge');
-  ab.textContent = '↑' + st.ahead; ab.classList.toggle('hidden', !st.ahead);
-  bb.textContent = '↓' + st.behind; bb.classList.toggle('hidden', !st.behind);
+  // 智能同步按钮：behind>0 → 拉取；ahead>0 → 推送；否则抓取
+  const syncBtn = $('#btn-sync'), syncLabel = $('#sync-label'), syncBadge = $('#sync-badge');
+  if (st.behind > 0) {
+    syncLabel.textContent = '拉取 origin';
+    syncBadge.textContent = '↓' + st.behind;
+    syncBadge.classList.remove('hidden');
+  } else if (st.ahead > 0) {
+    syncLabel.textContent = '推送 origin';
+    syncBadge.textContent = '↑' + st.ahead;
+    syncBadge.classList.remove('hidden');
+  } else {
+    syncLabel.textContent = '获取远程更新';
+    syncBadge.classList.add('hidden');
+  }
+
   $('#branch-name').textContent = st.current || '(未命名)';
 
   // 撤销按钮：工作区干净且本地有领先提交时显示
@@ -316,7 +337,7 @@ $('#check-all').addEventListener('change', async (e) => {
   } catch (err) { toast(err.message, 'error'); }
 });
 
-/* ---------- Diff ---------- */
+/* ---------- Diff 渲染 ---------- */
 function renderDiffText(diff) {
   if (!diff.trim()) {
     return '<span class="diff-hint">无可显示的文本差异（可能是新文件或二进制文件）</span>';
@@ -370,24 +391,28 @@ $('#btn-undo').addEventListener('click', async () => {
   } catch (e) { toast(e.message, 'error'); }
 });
 
-/* ---------- Push / Pull / Fetch ---------- */
-for (const action of ['push', 'pull', 'fetch']) {
-  $('#btn-' + action).addEventListener('click', async () => {
-    const btn = $('#btn-' + action);
-    btn.disabled = true;
-    try {
-      await api('/api/' + action, { body: { repo: state.current } });
-      toast({ push: '推送成功', pull: '拉取成功', fetch: '抓取成功' }[action], 'success');
-      await refreshStatus();
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      btn.disabled = false;
-    }
-  });
-}
+/* ---------- 智能同步按钮 ---------- */
+$('#btn-sync').addEventListener('click', async () => {
+  if (!state.status) return;
+  const st = state.status;
+  const action = st.behind > 0 ? 'pull' : st.ahead > 0 ? 'push' : 'fetch';
+  const btn = $('#btn-sync');
+  btn.disabled = true;
+  const oldLabel = $('#sync-label').textContent;
+  $('#sync-label').textContent = { pull: '拉取中…', push: '推送中…', fetch: '获取中…' }[action];
+  try {
+    await api('/api/' + action, { body: { repo: state.current } });
+    toast({ push: '推送成功', pull: '拉取成功', fetch: '已是最新' }[action], 'success');
+    await refreshStatus();
+  } catch (e) {
+    toast(e.message, 'error');
+    $('#sync-label').textContent = oldLabel;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
-/* ---------- 历史（含提交详情） ---------- */
+/* ---------- 历史（中栏列表 + 右栏详情） ---------- */
 async function loadHistory() {
   if (!state.current) return;
   try {
@@ -398,7 +423,7 @@ async function loadHistory() {
           <span class="commit-dot">●</span>
           <div class="commit-info">
             <div class="commit-msg">${esc(c.message.split('\n')[0])}</div>
-            <div class="commit-meta">${esc(c.author_name)} 提交于 ${new Date(c.date).toLocaleString('zh-CN')}</div>
+            <div class="commit-meta">${esc(c.author_name)} · ${new Date(c.date).toLocaleString('zh-CN')}</div>
           </div>
           <span class="commit-hash">${c.hash.slice(0, 7)}</span>
         </div>`).join('')
@@ -413,9 +438,7 @@ async function loadHistory() {
 async function showCommitDetail(hash) {
   state.selectedCommit = hash;
   $$('.commit-item').forEach((el) => el.classList.toggle('selected', el.dataset.hash === hash));
-  const box = $('#commit-detail-box');
-  box.classList.remove('hidden');
-  $('#commit-detail-title').textContent = hash.slice(0, 7);
+  $('#commit-detail-title').textContent = '提交 ' + hash.slice(0, 7);
   $('#commit-detail').innerHTML = '<div class="empty-hint">加载中…</div>';
   try {
     const c = await api(`/api/commit?repo=${encodeURIComponent(state.current)}&hash=${hash}`);
@@ -438,6 +461,8 @@ async function showCommitDetail(hash) {
     `;
     $$('.commit-file').forEach((el) => {
       el.addEventListener('click', async () => {
+        $$('.commit-file').forEach((x) => x.classList.remove('selected'));
+        el.classList.add('selected');
         const view = $('#commit-diff-view');
         view.innerHTML = '<span class="diff-hint">加载中…</span>';
         try {
@@ -505,15 +530,18 @@ async function stashPush() {
 $('#btn-stash').addEventListener('click', stashPush);
 $('#btn-stash-push').addEventListener('click', stashPush);
 
-/* ---------- 标签页 ---------- */
-$$('.tabs .tab').forEach((tab) => {
+/* ---------- 标签页（同时切换右侧面板） ---------- */
+$$('.panel-mid .tabs .tab').forEach((tab) => {
   tab.addEventListener('click', () => {
-    $$('.tabs .tab').forEach((t) => t.classList.remove('active'));
+    $$('.panel-mid .tabs .tab').forEach((t) => t.classList.remove('active'));
     tab.classList.add('active');
     const name = tab.dataset.tab;
     $('#tab-changes').classList.toggle('hidden', name !== 'changes');
     $('#tab-history').classList.toggle('hidden', name !== 'history');
     $('#tab-stashes').classList.toggle('hidden', name !== 'stashes');
+    $('#right-changes').classList.toggle('hidden', name !== 'changes');
+    $('#right-history').classList.toggle('hidden', name !== 'history');
+    $('#right-stashes').classList.toggle('hidden', name !== 'stashes');
     if (name === 'history') loadHistory();
     if (name === 'stashes') loadStashes();
   });
@@ -627,6 +655,11 @@ $('#btn-save-local').addEventListener('click', async () => {
     await loadConfig();
   } catch (e) { toast(e.message, 'error'); }
 });
+
+/* ---------- 使用指南 ---------- */
+$('#btn-help').addEventListener('click', () => $('#modal-help').classList.remove('hidden'));
+$('#btn-welcome-help').addEventListener('click', () => $('#modal-help').classList.remove('hidden'));
+$('#btn-welcome-add').addEventListener('click', () => $('#modal-add').classList.remove('hidden'));
 
 /* ---------- 添加仓库 ---------- */
 $('#btn-add-repo').addEventListener('click', () => $('#modal-add').classList.remove('hidden'));

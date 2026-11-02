@@ -4,18 +4,45 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gitea Desktop</title>
+  <script>
+    // 尽早应用主题，避免闪烁
+    document.documentElement.dataset.theme = localStorage.getItem('gd-theme') || 'light';
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- 顶部导航 -->
+  <!-- 顶栏：参考 GitHub Desktop，集成分支与同步操作 -->
   <header class="header">
-    <div class="header-inner">
-      <img class="logo" src="/logo.png" alt="Gitea" width="28" height="28" />
-      <span class="header-title">Gitea <strong>Desktop</strong></span>
-      <div class="header-spacer"></div>
-      <span id="current-repo-label" class="header-repo"></span>
-      <button id="btn-settings" class="btn btn-sm" title="Git 身份设置">⚙ 设置</button>
+    <img class="logo" src="/logo.png" alt="Gitea" width="26" height="26" />
+    <span class="header-title">Gitea <strong>Desktop</strong></span>
+
+    <div class="header-repo-controls hidden" id="repo-controls">
+      <div class="branch-picker">
+        <button id="btn-branch" class="header-btn">
+          <svg class="octicon" viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"></path></svg>
+          <span class="header-btn-label">当前分支</span>
+          <strong id="branch-name">main</strong>
+        </button>
+        <div id="branch-dropdown" class="dropdown hidden">
+          <div class="dropdown-header">
+            <span>切换分支</span>
+            <button id="btn-new-branch" class="btn btn-sm">新建分支</button>
+          </div>
+          <div id="branch-list"></div>
+        </div>
+      </div>
+
+      <button id="btn-sync" class="header-btn header-btn-primary">
+        <span id="sync-label">推送</span>
+        <span id="sync-badge" class="counter hidden"></span>
+      </button>
     </div>
+
+    <div class="header-spacer"></div>
+    <button id="btn-refresh" class="header-icon-btn hidden" title="刷新状态">⟳</button>
+    <button id="btn-help" class="header-icon-btn" title="使用指南">？</button>
+    <button id="btn-settings" class="header-icon-btn" title="Git 身份设置">⚙</button>
+    <button id="btn-theme" class="header-icon-btn" title="切换主题">🌙</button>
   </header>
 
   <div class="layout">
@@ -30,107 +57,77 @@
       </div>
     </aside>
 
-    <!-- 主区域 -->
-    <main class="main" id="main-empty">
+    <!-- 欢迎页 -->
+    <div class="welcome-wrap" id="main-empty">
       <div class="welcome">
+        <img src="/logo.png" width="72" height="72" alt="Gitea" />
         <h2>欢迎使用 Gitea Desktop</h2>
         <p>从左侧选择一个本地仓库开始管理，或者克隆、新建一个仓库。</p>
-      </div>
-    </main>
-
-    <main class="main hidden" id="main-repo">
-      <!-- 仓库标题栏 -->
-      <div class="repo-header">
-        <div class="repo-title">
-          <span id="repo-name"></span>
-          <span class="label">Local</span>
-        </div>
-        <div class="repo-actions">
-          <button id="btn-refresh" class="btn" title="刷新状态">⟳</button>
-          <button id="btn-stash" class="btn">贮藏</button>
-          <button id="btn-fetch" class="btn">Fetch</button>
-          <button id="btn-pull" class="btn">Pull <span id="behind-badge" class="counter hidden"></span></button>
-          <button id="btn-push" class="btn btn-primary">Push <span id="ahead-badge" class="counter hidden"></span></button>
+        <div class="welcome-actions">
+          <button class="btn btn-primary" id="btn-welcome-add">添加仓库</button>
+          <button class="btn" id="btn-welcome-help">查看使用指南</button>
         </div>
       </div>
+    </div>
 
-      <!-- 分支选择 + 标签页 -->
-      <div class="toolbar">
-        <div class="branch-picker">
-          <button id="btn-branch" class="btn">
-            <svg class="octicon" viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"></path></svg>
-            <span id="branch-name">main</span>
-          </button>
-          <div id="branch-dropdown" class="dropdown hidden">
-            <div class="dropdown-header">
-              <span>切换分支</span>
-              <button id="btn-new-branch" class="btn btn-sm">新建分支</button>
-            </div>
-            <div id="branch-list"></div>
-          </div>
-        </div>
-
+    <!-- 工作区：中间面板（标签页 + 列表 + 提交框） + 右侧面板（diff / 详情） -->
+    <div class="workspace hidden" id="main-repo">
+      <section class="panel-mid">
         <nav class="tabs">
-          <button class="tab active" data-tab="changes">改动 <span id="changes-count" class="counter hidden"></span></button>
+          <button class="tab active" data-tab="changes">更改 <span id="changes-count" class="counter hidden"></span></button>
           <button class="tab" data-tab="history">历史</button>
           <button class="tab" data-tab="stashes">贮藏 <span id="stash-count" class="counter hidden"></span></button>
         </nav>
-      </div>
 
-      <!-- 改动页 -->
-      <div id="tab-changes" class="tab-panel">
-        <div class="changes-layout">
-          <div class="changes-left">
-            <div class="box">
-              <div class="box-header">
-                <label><input type="checkbox" id="check-all" /> <span id="changes-title">更改的文件</span></label>
-              </div>
-              <div id="file-list"></div>
-            </div>
-            <div class="box commit-box">
-              <div class="commit-form">
-                <input id="commit-summary" type="text" placeholder="提交说明（必填）" />
-                <textarea id="commit-body" rows="2" placeholder="详细描述（可选）"></textarea>
-                <div class="commit-by" id="commit-by"></div>
-                <button id="btn-commit" class="btn btn-primary btn-block">提交到 <span id="commit-branch"></span></button>
-                <button id="btn-undo" class="btn btn-block hidden">↩ 撤销最近一次提交</button>
-              </div>
-            </div>
+        <div id="tab-changes" class="tab-panel">
+          <div class="file-list-head">
+            <label><input type="checkbox" id="check-all" /> <span id="changes-title">更改的文件</span></label>
+            <button id="btn-stash" class="btn btn-sm" title="贮藏当前改动">贮藏</button>
           </div>
-          <div class="changes-right">
-            <div class="box diff-box">
-              <div class="box-header" id="diff-title">选择一个文件查看差异</div>
-              <pre id="diff-view" class="diff-view"><span class="diff-hint">点击左侧文件查看具体改动</span></pre>
-            </div>
+          <div id="file-list" class="file-list"></div>
+          <div class="commit-area">
+            <input id="commit-summary" type="text" placeholder="提交说明（必填）" />
+            <textarea id="commit-body" rows="2" placeholder="详细描述（可选）"></textarea>
+            <div class="commit-by" id="commit-by"></div>
+            <button id="btn-commit" class="btn btn-primary btn-block">提交到 <span id="commit-branch"></span></button>
+            <button id="btn-undo" class="btn btn-block hidden">↩ 撤销最近一次提交</button>
           </div>
         </div>
-      </div>
 
-      <!-- 历史页 -->
-      <div id="tab-history" class="tab-panel hidden">
-        <div class="history-layout">
-          <div class="box history-list-box">
-            <div class="box-header">提交历史</div>
-            <div id="commit-list"></div>
-          </div>
-          <div class="box history-detail-box hidden" id="commit-detail-box">
-            <div class="box-header" id="commit-detail-title">提交详情</div>
-            <div id="commit-detail"></div>
-          </div>
+        <div id="tab-history" class="tab-panel hidden">
+          <div id="commit-list" class="commit-list"></div>
         </div>
-      </div>
 
-      <!-- 贮藏页 -->
-      <div id="tab-stashes" class="tab-panel hidden">
-        <div class="box">
-          <div class="box-header" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>贮藏的改动</span>
+        <div id="tab-stashes" class="tab-panel hidden">
+          <div class="file-list-head">
+            <span class="stash-head-title">贮藏的改动</span>
             <button id="btn-stash-push" class="btn btn-sm">贮藏当前改动</button>
           </div>
-          <div id="stash-list"></div>
+          <div id="stash-list" class="commit-list"></div>
         </div>
-      </div>
-    </main>
+      </section>
+
+      <section class="panel-right">
+        <!-- 改动 diff -->
+        <div id="right-changes" class="right-pane">
+          <div class="right-pane-head" id="diff-title">选择一个文件查看差异</div>
+          <pre id="diff-view" class="diff-view"><span class="diff-hint">点击左侧文件查看具体改动</span></pre>
+        </div>
+        <!-- 提交详情 -->
+        <div id="right-history" class="right-pane hidden">
+          <div class="right-pane-head" id="commit-detail-title">提交详情</div>
+          <div id="commit-detail" class="commit-detail"></div>
+        </div>
+        <!-- 贮藏提示 -->
+        <div id="right-stashes" class="right-pane hidden">
+          <div class="right-pane-head">贮藏</div>
+          <div class="stash-help">
+            <p>贮藏（stash）可以把当前未提交的改动临时收起来，让工作区恢复干净，稍后再恢复。</p>
+            <p>典型场景：改到一半需要切分支或拉取别人的更新时，先贮藏，处理完再恢复。</p>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- 添加仓库对话框 -->
@@ -224,6 +221,54 @@
           <input id="cfg-local-email" type="text" placeholder="沿用全局" />
           <button id="btn-save-local" class="btn">保存仓库设置</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 使用指南对话框 -->
+  <div id="modal-help" class="modal-overlay hidden">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <span>使用指南</span>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <div class="modal-body help-body">
+        <section>
+          <h3>① 一次性准备：让电脑能连上 Gitea</h3>
+          <ol>
+            <li>本机需要安装 <strong>Git</strong>（本工具的所有操作都通过它完成）。</li>
+            <li>确认你有 SSH 密钥：检查 <code>C:\Users\你的用户名\.ssh\id_rsa.pub</code> 是否存在。没有就在终端运行 <code>ssh-keygen -t rsa -b 3072</code> 一路回车生成。</li>
+            <li>打开 <code>id_rsa.pub</code>，复制全部内容，到 Gitea 网页端「设置 → SSH / GPG 密钥」里添加。</li>
+            <li>验证：终端运行 <code>ssh -T -p 2222 git@10.0.0.2</code>，看到 <em>Hi there, 你的用户名!</em> 即配置成功。</li>
+          </ol>
+        </section>
+        <section>
+          <h3>② 把仓库加进来</h3>
+          <p>左上角「+ 添加」提供四种方式，路径都可以点「浏览…」直接选文件夹：</p>
+          <ul>
+            <li><strong>克隆</strong>：地址填 <code>ssh://git@10.0.0.2:2222/用户名/仓库名.git</code>（在 Gitea 仓库页面可复制）；</li>
+            <li><strong>扫描目录</strong>：选一个代码总目录，自动找出里面所有 git 仓库；</li>
+            <li><strong>打开</strong>：单独添加一个已有仓库；</li>
+            <li><strong>新建</strong>：从零创建本地仓库（自动完成首次提交）。</li>
+          </ul>
+        </section>
+        <section>
+          <h3>③ 日常工作流</h3>
+          <ol>
+            <li>改代码后，「更改」页勾选要提交的文件（勾选 = git add）；</li>
+            <li>填写提交说明，点「提交到 分支名」；</li>
+            <li>点顶栏「推送」同步到 Gitea。开始工作前建议先「拉取」。</li>
+          </ol>
+        </section>
+        <section>
+          <h3>④ 常见问题</h3>
+          <ul>
+            <li><strong>推送失败 / 认证失败</strong>：先按第 ① 步验证 SSH；确认仓库远程地址是 SSH 形式。</li>
+            <li><strong>提交人不对</strong>：点顶栏 ⚙ 检查全局和仓库级身份。</li>
+            <li><strong>想临时收起改动</strong>：用「贮藏」，之后在「贮藏」页恢复。</li>
+            <li><strong>提交错了</strong>：只要还没推送，「更改」页会出现「撤销最近一次提交」。</li>
+          </ul>
+        </section>
       </div>
     </div>
   </div>
