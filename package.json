@@ -1,0 +1,21 @@
+{
+  "name": "gitea-desktop",
+  "productName": "Gitea Desktop",
+  "version": "1.0.0",
+  "description": "本地可视化 Git 仓库管理工具（类 GitHub Desktop）",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "electron .",
+    "pack": "electron-packager . \"Gitea Desktop\" --platform=win32 --arch=x64 --out=dist --overwrite"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-packager": "^17.1.2",
+    "rcedit": "^5.0.1"
+  }
+}
