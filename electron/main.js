@@ -1,5 +1,5 @@
 // Gitea Desktop —— Electron 主进程
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const path = require('path');
 const expressApp = require('../server');
 
@@ -22,6 +22,7 @@ function createWindow(port) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -39,6 +40,19 @@ function createWindow(port) {
 }
 
 app.whenReady().then(() => {
+  // 原生文件夹选择对话框
+  ipcMain.handle('pick-folder', async (_e, title) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: title || '选择文件夹',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  // 在资源管理器中定位
+  ipcMain.handle('show-in-folder', (_e, targetPath) => {
+    shell.showItemInFolder(targetPath);
+  });
+
   // 端口传 0：让系统分配空闲端口，避免冲突
   server = expressApp.listen(0, '127.0.0.1', () => {
     const port = server.address().port;

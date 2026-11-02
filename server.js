@@ -214,6 +214,157 @@ app.post('/api/branch', handle(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// 删除分支
+app.post('/api/branch/delete', handle(async (req, res) => {
+  const { repo, name } = req.body;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  const st = await git(repo).status();
+  if (st.current === name) return res.status(400).json({ error: '不能删除当前所在的分支' });
+  await git(repo).deleteLocalBranch(name, true);
+  res.json({ ok: true });
+}));
+
+// Git 身份配置（读取全局/仓库级 user.name、user.email）
+app.get('/api/config', handle(async (req, res) => {
+  const { repo } = req.query;
+  const g = repo && validRepo(repo) ? git(repo) : simpleGit();
+  const [globalName, globalEmail] = await Promise.all([
+    g.raw(['config', '--global', 'user.name']).catch(() => ''),
+    g.raw(['config', '--global', 'user.email']).catch(() => ''),
+  ]);
+  let localName = '', localEmail = '';
+  if (repo && validRepo(repo)) {
+    [localName, localEmail] = await Promise.all([
+      g.raw(['config', '--local', 'user.name']).catch(() => ''),
+      g.raw(['config', '--local', 'user.email']).catch(() => ''),
+    ]);
+  }
+  res.json({
+    global: { name: globalName.trim(), email: globalEmail.trim() },
+    local: { name: localName.trim(), email: localEmail.trim() },
+  });
+}));
+
+app.post('/api/config', handle(async (req, res) => {
+  const { repo, scope, name, email } = req.body;
+  const flag = scope === 'local' ? '--local' : '--global';
+  const g = scope === 'local' && repo && validRepo(repo) ? git(repo) : simpleGit();
+  if (scope === 'local' && !(repo && validRepo(repo))) {
+    return res.status(400).json({ error: '仓库级配置需要有效的仓库路径' });
+  }
+  if (name !== undefined) await g.raw(['config', flag, 'user.name', name]);
+  if (email !== undefined) await g.raw(['config', flag, 'user.email', email]);
+  res.json({ ok: true });
+}));
+
+// 放弃某个文件的更改
+app.post('/api/discard', handle(async (req, res) => {
+  const { repo, file } = req.body;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  const g = git(repo);
+  const st = await g.status();
+  if (st.not_added.includes(file)) {
+    // 未跟踪文件：直接删除
+    fs.rmSync(path.join(repo, file), { recursive: true, force: true });
+  } else {
+    await g.checkout(['--', file]);
+  }
+  res.json({ ok: true });
+}));
+
+// 贮藏列表 / 贮藏 / 弹出
+app.get('/api/stashes', handle(async (req, res) => {
+  const repo = req.query.repo;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  const out = await git(repo).raw(['stash', 'list']);
+  const stashes = out.split('\n').filter(Boolean).map((line) => {
+    const m = line.match(/^(stash@\{\d+\}):\s*(.*)$/);
+    return m ? { ref: m[1], message: m[2] } : { ref: line, message: '' };
+  });
+  res.json({ stashes });
+}));
+
+app.post('/api/stash', handle(async (req, res) => {
+  const { repo, action, message } = req.body;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  const g = git(repo);
+  if (action === 'push') {
+    const args = ['stash', 'push', '-u'];
+    if (message) args.push('-m', message);
+    await g.raw(args);
+  } else if (action === 'pop') {
+    await g.raw(['stash', 'pop']);
+  } else {
+    return res.status(400).json({ error: '未知的 stash 操作' });
+  }
+  res.json({ ok: true });
+}));
+
+// 撤销最近一次提交（保留改动到工作区）
+app.post('/api/undo-commit', handle(async (req, res) => {
+  const { repo } = req.body;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  await git(repo).raw(['reset', '--mixed', 'HEAD~1']);
+  res.json({ ok: true });
+}));
+
+// 提交详情（元信息 + 涉及文件）
+app.get('/api/commit', handle(async (req, res) => {
+  const { repo, hash } = req.query;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  const g = git(repo);
+  const metaOut = await g.raw(['show', '-s', '--format=%H%n%an%n%ae%n%ad%n%B', hash]);
+  const lines = metaOut.split('\n');
+  const filesOut = await g.raw(['show', '--name-status', '--format=', hash]);
+  const files = filesOut.split('\n').filter(Boolean).map((l) => {
+    const [status, ...rest] = l.split('\t');
+    return { status: status.trim(), path: rest.join('\t') };
+  });
+  res.json({
+    hash: lines[0],
+    author: lines[1],
+    email: lines[2],
+    date: lines[3],
+    message: lines.slice(4).join('\n').trim(),
+    files,
+  });
+}));
+
+// 某个提交中单个文件的 diff
+app.get('/api/commit-diff', handle(async (req, res) => {
+  const { repo, hash, file } = req.query;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  const diff = await git(repo).raw(['show', '--format=', hash, '--', file]);
+  res.json({ diff });
+}));
+
+// 新建本地仓库（git init + 首个提交）
+app.post('/api/init', handle(async (req, res) => {
+  const { parentDir, name } = req.body;
+  if (!parentDir || !name || !name.trim()) return res.status(400).json({ error: '缺少目录或仓库名' });
+  if (!fs.existsSync(parentDir)) return res.status(400).json({ error: '目标目录不存在' });
+  const repoPath = path.join(parentDir, name.trim());
+  if (fs.existsSync(repoPath)) return res.status(400).json({ error: '该目录已存在' });
+  fs.mkdirSync(repoPath, { recursive: true });
+  const g = git(repoPath);
+  await g.raw(['init', '-b', 'main']);
+  fs.writeFileSync(path.join(repoPath, 'README.md'), `# ${name.trim()}\n`);
+  await g.add('README.md');
+  await g.commit('Initial commit');
+  res.json({ ok: true, path: repoPath });
+}));
+
+// 从磁盘删除仓库（需确认字段与目录名一致）
+app.post('/api/delete-repo', handle(async (req, res) => {
+  const { repo, confirm } = req.body;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  if (confirm !== path.basename(repo)) {
+    return res.status(400).json({ error: '确认字段与仓库目录名不一致' });
+  }
+  fs.rmSync(repo, { recursive: true, force: true });
+  res.json({ ok: true });
+}));
+
 // ---------- 启动 ----------
 
 // 解析命令行参数和 env（支持 npm run dev -- --port 7100 --host 0.0.0.0）

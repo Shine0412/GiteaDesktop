@@ -7,13 +7,14 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- 顶部导航（GitHub 风格） -->
+  <!-- 顶部导航 -->
   <header class="header">
     <div class="header-inner">
       <img class="logo" src="/logo.png" alt="Gitea" width="28" height="28" />
       <span class="header-title">Gitea <strong>Desktop</strong></span>
       <div class="header-spacer"></div>
       <span id="current-repo-label" class="header-repo"></span>
+      <button id="btn-settings" class="btn btn-sm" title="Git 身份设置">⚙ 设置</button>
     </div>
   </header>
 
@@ -25,7 +26,7 @@
         <button id="btn-add-repo" class="btn btn-sm btn-primary">+ 添加</button>
       </div>
       <div id="repo-list" class="repo-list">
-        <div class="empty-hint">点击「+ 添加」扫描目录或克隆仓库</div>
+        <div class="empty-hint">点击「+ 添加」扫描目录、克隆或新建仓库</div>
       </div>
     </aside>
 
@@ -33,7 +34,7 @@
     <main class="main" id="main-empty">
       <div class="welcome">
         <h2>欢迎使用 Gitea Desktop</h2>
-        <p>从左侧选择一个本地仓库开始管理，或者克隆一个新仓库。</p>
+        <p>从左侧选择一个本地仓库开始管理，或者克隆、新建一个仓库。</p>
       </div>
     </main>
 
@@ -41,11 +42,12 @@
       <!-- 仓库标题栏 -->
       <div class="repo-header">
         <div class="repo-title">
-          <svg class="octicon" viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25v3.25a.25.25 0 0 0 .4.2l1.45-1.087a.249.249 0 0 1 .3 0L8.6 15.7a.25.25 0 0 0 .4-.2v-3.25a.25.25 0 0 0-.25-.25h-3.5a.25.25 0 0 0-.25.25Z"></path></svg>
           <span id="repo-name"></span>
           <span class="label">Local</span>
         </div>
         <div class="repo-actions">
+          <button id="btn-refresh" class="btn" title="刷新状态">⟳</button>
+          <button id="btn-stash" class="btn">贮藏</button>
           <button id="btn-fetch" class="btn">Fetch</button>
           <button id="btn-pull" class="btn">Pull <span id="behind-badge" class="counter hidden"></span></button>
           <button id="btn-push" class="btn btn-primary">Push <span id="ahead-badge" class="counter hidden"></span></button>
@@ -71,6 +73,7 @@
         <nav class="tabs">
           <button class="tab active" data-tab="changes">改动 <span id="changes-count" class="counter hidden"></span></button>
           <button class="tab" data-tab="history">历史</button>
+          <button class="tab" data-tab="stashes">贮藏 <span id="stash-count" class="counter hidden"></span></button>
         </nav>
       </div>
 
@@ -85,11 +88,12 @@
               <div id="file-list"></div>
             </div>
             <div class="box commit-box">
-              <div class="commit-avatar">✎</div>
               <div class="commit-form">
                 <input id="commit-summary" type="text" placeholder="提交说明（必填）" />
                 <textarea id="commit-body" rows="2" placeholder="详细描述（可选）"></textarea>
+                <div class="commit-by" id="commit-by"></div>
                 <button id="btn-commit" class="btn btn-primary btn-block">提交到 <span id="commit-branch"></span></button>
+                <button id="btn-undo" class="btn btn-block hidden">↩ 撤销最近一次提交</button>
               </div>
             </div>
           </div>
@@ -104,9 +108,26 @@
 
       <!-- 历史页 -->
       <div id="tab-history" class="tab-panel hidden">
+        <div class="history-layout">
+          <div class="box history-list-box">
+            <div class="box-header">提交历史</div>
+            <div id="commit-list"></div>
+          </div>
+          <div class="box history-detail-box hidden" id="commit-detail-box">
+            <div class="box-header" id="commit-detail-title">提交详情</div>
+            <div id="commit-detail"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 贮藏页 -->
+      <div id="tab-stashes" class="tab-panel hidden">
         <div class="box">
-          <div class="box-header">提交历史</div>
-          <div id="commit-list"></div>
+          <div class="box-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>贮藏的改动</span>
+            <button id="btn-stash-push" class="btn btn-sm">贮藏当前改动</button>
+          </div>
+          <div id="stash-list"></div>
         </div>
       </div>
     </main>
@@ -120,26 +141,46 @@
         <button class="modal-close" data-close>×</button>
       </div>
       <div class="modal-tabs">
-        <button class="tab active" data-mtab="scan">扫描本地目录</button>
-        <button class="tab" data-mtab="clone">克隆仓库</button>
-        <button class="tab" data-mtab="open">打开已有仓库</button>
+        <button class="tab active" data-mtab="scan">扫描目录</button>
+        <button class="tab" data-mtab="clone">克隆</button>
+        <button class="tab" data-mtab="open">打开</button>
+        <button class="tab" data-mtab="init">新建</button>
       </div>
       <div id="mtab-scan" class="mtab-panel">
         <label>目录路径（自动查找其中两层内的 git 仓库）</label>
-        <input id="scan-dir" type="text" placeholder="例如 C:\Users\you\code" />
+        <div class="input-row">
+          <input id="scan-dir" type="text" placeholder="例如 C:\Users\you\code" />
+          <button class="btn browse-btn" data-target="scan-dir">浏览…</button>
+        </div>
         <button id="btn-scan" class="btn btn-primary">扫描</button>
       </div>
       <div id="mtab-clone" class="mtab-panel hidden">
         <label>仓库地址（SSH 或 HTTPS）</label>
-        <input id="clone-url" type="text" placeholder="git@gitea.example.com:user/repo.git" />
+        <input id="clone-url" type="text" placeholder="ssh://git@10.0.0.2:2222/user/repo.git" />
         <label>克隆到目录</label>
-        <input id="clone-dir" type="text" placeholder="例如 C:\Users\you\code" />
+        <div class="input-row">
+          <input id="clone-dir" type="text" placeholder="例如 C:\Users\you\code" />
+          <button class="btn browse-btn" data-target="clone-dir">浏览…</button>
+        </div>
         <button id="btn-clone" class="btn btn-primary">克隆</button>
       </div>
       <div id="mtab-open" class="mtab-panel hidden">
         <label>仓库的完整路径</label>
-        <input id="open-dir" type="text" placeholder="例如 C:\Users\you\code\my-repo" />
+        <div class="input-row">
+          <input id="open-dir" type="text" placeholder="例如 C:\Users\you\code\my-repo" />
+          <button class="btn browse-btn" data-target="open-dir">浏览…</button>
+        </div>
         <button id="btn-open" class="btn btn-primary">打开</button>
+      </div>
+      <div id="mtab-init" class="mtab-panel hidden">
+        <label>新仓库名称</label>
+        <input id="init-name" type="text" placeholder="my-project" />
+        <label>创建位置</label>
+        <div class="input-row">
+          <input id="init-dir" type="text" placeholder="例如 C:\Users\you\code" />
+          <button class="btn browse-btn" data-target="init-dir">浏览…</button>
+        </div>
+        <button id="btn-init" class="btn btn-primary">创建仓库</button>
       </div>
     </div>
   </div>
@@ -155,6 +196,50 @@
         <label>分支名</label>
         <input id="new-branch-name" type="text" placeholder="feature/my-feature" />
         <button id="btn-create-branch" class="btn btn-primary btn-block">创建并切换</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置对话框 -->
+  <div id="modal-settings" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <span>Git 身份设置</span>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h4>全局身份（所有仓库默认使用）</h4>
+          <label>用户名</label>
+          <input id="cfg-global-name" type="text" />
+          <label>邮箱</label>
+          <input id="cfg-global-email" type="text" />
+          <button id="btn-save-global" class="btn">保存全局设置</button>
+        </div>
+        <div class="settings-section" id="local-config-section">
+          <h4>当前仓库身份（留空则沿用全局）</h4>
+          <label>用户名</label>
+          <input id="cfg-local-name" type="text" placeholder="沿用全局" />
+          <label>邮箱</label>
+          <input id="cfg-local-email" type="text" placeholder="沿用全局" />
+          <button id="btn-save-local" class="btn">保存仓库设置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 删除仓库确认对话框 -->
+  <div id="modal-delete" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <span class="danger-text">从磁盘删除仓库</span>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <div class="modal-body">
+        <p class="danger-text">此操作会永久删除整个目录，无法恢复！</p>
+        <p>请输入仓库目录名 <strong id="delete-expect"></strong> 以确认：</p>
+        <input id="delete-confirm" type="text" autocomplete="off" />
+        <button id="btn-confirm-delete" class="btn btn-danger btn-block" disabled>永久删除</button>
       </div>
     </div>
   </div>
