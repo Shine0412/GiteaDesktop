@@ -55,6 +55,33 @@ $('#btn-theme').addEventListener('click', () => {
 });
 applyTheme(localStorage.getItem('gd-theme') || 'light');
 
+/* ---------- 可拖拽分隔线 ---------- */
+$$('.divider').forEach((divider) => {
+  const panel = $(divider.dataset.panel);
+  if (!panel) return;
+  const saved = localStorage.getItem(divider.dataset.key);
+  if (saved) panel.style.width = saved;
+  divider.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    divider.classList.add('dragging');
+    const startX = e.clientX;
+    const startW = panel.getBoundingClientRect().width;
+    const min = parseInt(getComputedStyle(panel).minWidth) || 160;
+    function move(ev) {
+      const max = window.innerWidth * 0.5;
+      panel.style.width = Math.min(Math.max(startW + ev.clientX - startX, min), max) + 'px';
+    }
+    function up() {
+      divider.classList.remove('dragging');
+      localStorage.setItem(divider.dataset.key, panel.style.width);
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    }
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+});
+
 /* ---------- 侧栏仓库列表（含操作菜单） ---------- */
 function renderRepoList() {
   const list = $('#repo-list');
@@ -181,6 +208,9 @@ async function openRepo(repoPath) {
     loadConfig();
     loadStashCount();
     const activeTab = document.querySelector('.panel-mid .tabs .tab.active')?.dataset.tab;
+    const showDetail = activeTab === 'history' || activeTab === 'stashes';
+    $('#panel-detail').classList.toggle('hidden', !showDetail);
+    $('#divider-detail').classList.toggle('hidden', !showDetail);
     if (activeTab === 'history') loadHistory();
     if (activeTab === 'stashes') loadStashes();
   } catch (e) {
@@ -218,19 +248,27 @@ function renderStatus() {
   const st = state.status;
   if (!st) return;
 
-  // 智能同步按钮：behind>0 → 拉取；ahead>0 → 推送；否则抓取
+  // 智能同步按钮：无远程 → 发布；behind>0 → 拉取；ahead>0 → 推送；否则获取
   const syncBtn = $('#btn-sync'), syncLabel = $('#sync-label'), syncBadge = $('#sync-badge');
-  if (st.behind > 0) {
+  const hasRemote = (st.remotes || []).length > 0;
+  if (!hasRemote) {
+    syncLabel.textContent = '发布仓库…';
+    syncBadge.classList.add('hidden');
+    syncBtn.dataset.mode = 'publish';
+  } else if (st.behind > 0) {
     syncLabel.textContent = '拉取 origin';
     syncBadge.textContent = '↓' + st.behind;
     syncBadge.classList.remove('hidden');
+    syncBtn.dataset.mode = 'pull';
   } else if (st.ahead > 0) {
     syncLabel.textContent = '推送 origin';
     syncBadge.textContent = '↑' + st.ahead;
     syncBadge.classList.remove('hidden');
+    syncBtn.dataset.mode = 'push';
   } else {
     syncLabel.textContent = '获取远程更新';
     syncBadge.classList.add('hidden');
+    syncBtn.dataset.mode = 'fetch';
   }
 
   $('#branch-name').textContent = st.current || '(未命名)';
@@ -391,24 +429,50 @@ $('#btn-undo').addEventListener('click', async () => {
   } catch (e) { toast(e.message, 'error'); }
 });
 
-/* ---------- 智能同步按钮 ---------- */
+/* ---------- 智能同步按钮 / 发布仓库 ---------- */
 $('#btn-sync').addEventListener('click', async () => {
   if (!state.status) return;
-  const st = state.status;
-  const action = st.behind > 0 ? 'pull' : st.ahead > 0 ? 'push' : 'fetch';
+  const mode = $('#btn-sync').dataset.mode;
+  if (mode === 'publish') {
+    // 预填建议地址：Gitea 地址 + 当前目录名
+    const repoName = state.current.replace(/\\/g, '/').split('/').pop();
+    $('#publish-url').value = `ssh://git@10.0.0.2:2222/lijizhe/${repoName}.git`;
+    $('#modal-publish').classList.remove('hidden');
+    $('#publish-url').focus();
+    return;
+  }
   const btn = $('#btn-sync');
   btn.disabled = true;
   const oldLabel = $('#sync-label').textContent;
-  $('#sync-label').textContent = { pull: '拉取中…', push: '推送中…', fetch: '获取中…' }[action];
+  $('#sync-label').textContent = { pull: '拉取中…', push: '推送中…', fetch: '获取中…' }[mode];
   try {
-    await api('/api/' + action, { body: { repo: state.current } });
-    toast({ push: '推送成功', pull: '拉取成功', fetch: '已是最新' }[action], 'success');
+    await api('/api/' + mode, { body: { repo: state.current } });
+    toast({ push: '推送成功', pull: '拉取成功', fetch: '已是最新' }[mode], 'success');
     await refreshStatus();
   } catch (e) {
     toast(e.message, 'error');
     $('#sync-label').textContent = oldLabel;
   } finally {
     btn.disabled = false;
+  }
+});
+
+$('#btn-do-publish').addEventListener('click', async () => {
+  const url = $('#publish-url').value.trim();
+  if (!url) return toast('请填写远程地址', 'error');
+  const btn = $('#btn-do-publish');
+  btn.disabled = true;
+  btn.textContent = '推送中…';
+  try {
+    await api('/api/publish', { body: { repo: state.current, url } });
+    $('#modal-publish').classList.add('hidden');
+    toast('发布成功，已推送到远程', 'success');
+    await refreshStatus();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '添加远程并推送';
   }
 });
 
@@ -457,13 +521,13 @@ async function showCommitDetail(hash) {
           </div>`;
         }).join('') || '<div class="empty-hint">无文件变更</div>'}
       </div>
-      <pre id="commit-diff-view" class="diff-view"><span class="diff-hint">点击上方文件查看该次提交的差异</span></pre>
     `;
     $$('.commit-file').forEach((el) => {
       el.addEventListener('click', async () => {
         $$('.commit-file').forEach((x) => x.classList.remove('selected'));
         el.classList.add('selected');
-        const view = $('#commit-diff-view');
+        const view = $('#diff-view');
+        $('#diff-title').textContent = el.dataset.path;
         view.innerHTML = '<span class="diff-hint">加载中…</span>';
         try {
           const { diff } = await api(`/api/commit-diff?repo=${encodeURIComponent(state.current)}&hash=${el.dataset.hash}&file=${encodeURIComponent(el.dataset.path)}`);
@@ -530,7 +594,7 @@ async function stashPush() {
 $('#btn-stash').addEventListener('click', stashPush);
 $('#btn-stash-push').addEventListener('click', stashPush);
 
-/* ---------- 标签页（同时切换右侧面板） ---------- */
+/* ---------- 标签页（历史页联动详情栏，diff 栏始终独立） ---------- */
 $$('.panel-mid .tabs .tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     $$('.panel-mid .tabs .tab').forEach((t) => t.classList.remove('active'));
@@ -539,11 +603,29 @@ $$('.panel-mid .tabs .tab').forEach((tab) => {
     $('#tab-changes').classList.toggle('hidden', name !== 'changes');
     $('#tab-history').classList.toggle('hidden', name !== 'history');
     $('#tab-stashes').classList.toggle('hidden', name !== 'stashes');
-    $('#right-changes').classList.toggle('hidden', name !== 'changes');
-    $('#right-history').classList.toggle('hidden', name !== 'history');
-    $('#right-stashes').classList.toggle('hidden', name !== 'stashes');
-    if (name === 'history') loadHistory();
-    if (name === 'stashes') loadStashes();
+    // 详情栏仅在历史/贮藏页出现
+    const showDetail = name === 'history' || name === 'stashes';
+    $('#panel-detail').classList.toggle('hidden', !showDetail);
+    $('#divider-detail').classList.toggle('hidden', !showDetail);
+    if (name === 'history') {
+      loadHistory();
+      $('#commit-detail-title').textContent = '提交详情';
+      $('#commit-detail').innerHTML = '<div class="empty-hint">选择左侧的提交记录查看详情</div>';
+      $('#diff-title').textContent = '差异';
+      $('#diff-view').innerHTML = '<span class="diff-hint">在提交详情中点击文件查看该次提交的差异</span>';
+    }
+    if (name === 'stashes') {
+      loadStashes();
+      $('#commit-detail-title').textContent = '贮藏';
+      $('#commit-detail').innerHTML = `<div class="stash-help">
+        <p>贮藏（stash）可以把当前未提交的改动临时收起来，让工作区恢复干净，稍后再恢复。</p>
+        <p>典型场景：改到一半需要切分支或拉取别人的更新时，先贮藏，处理完再恢复。</p>
+      </div>`;
+    }
+    if (name === 'changes') {
+      $('#diff-title').textContent = '差异';
+      $('#diff-view').innerHTML = '<span class="diff-hint">点击左侧文件查看具体改动</span>';
+    }
   });
 });
 

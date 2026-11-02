@@ -98,17 +98,19 @@ function repoNameFromUrl(url) {
   return base || 'repo';
 }
 
-// 仓库状态（分支、改动文件、与远程的差距）
+// 仓库状态（分支、改动文件、与远程的差距、远程列表）
 app.get('/api/status', handle(async (req, res) => {
   const repo = req.query.repo;
   if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
   const g = git(repo);
   const status = await g.status();
+  const remoteList = await g.getRemotes(true);
   res.json({
     current: status.current,
     tracking: status.tracking,
     ahead: status.ahead,
     behind: status.behind,
+    remotes: remoteList.map((r) => ({ name: r.name, url: r.refs?.fetch || '' })),
     staged: status.staged,
     modified: status.modified,
     created: status.created,
@@ -362,6 +364,23 @@ app.post('/api/delete-repo', handle(async (req, res) => {
     return res.status(400).json({ error: '确认字段与仓库目录名不一致' });
   }
   fs.rmSync(repo, { recursive: true, force: true });
+  res.json({ ok: true });
+}));
+
+// 发布到远程仓库：设置 origin 并首次推送
+app.post('/api/publish', handle(async (req, res) => {
+  const { repo, url } = req.body;
+  if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
+  if (!url || !url.trim()) return res.status(400).json({ error: '远程地址不能为空' });
+  const g = git(repo);
+  const remotes = await g.getRemotes();
+  if (remotes.some((r) => r.name === 'origin')) {
+    await g.remote(['set-url', 'origin', url.trim()]);
+  } else {
+    await g.addRemote('origin', url.trim());
+  }
+  const st = await g.status();
+  await g.push(['-u', 'origin', st.current]);
   res.json({ ok: true });
 }));
 

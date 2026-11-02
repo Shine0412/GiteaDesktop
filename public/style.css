@@ -109,8 +109,8 @@ body {
 /* ===== 侧栏 ===== */
 .sidebar {
   width: 240px;
-  min-width: 240px;
-  border-right: 1px solid var(--border);
+  min-width: 160px;
+  flex-shrink: 0;
   background: var(--bg-muted);
   display: flex;
   flex-direction: column;
@@ -143,8 +143,8 @@ body {
 
 .panel-mid {
   width: 400px;
-  min-width: 400px;
-  border-right: 1px solid var(--border);
+  min-width: 240px;
+  flex-shrink: 0;
   background: var(--bg-default);
   display: flex;
   flex-direction: column;
@@ -199,14 +199,33 @@ body {
 }
 .commit-by { font-size: 12px; color: var(--fg-muted); }
 
-/* ===== 右侧面板 ===== */
-.panel-right { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-default); }
-.right-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+/* ===== 右侧面板（详情栏 + 独立 diff 栏） ===== */
+.panel-detail {
+  width: 380px;
+  min-width: 200px;
+  border-right: none;
+  background: var(--bg-default);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.panel-diff { flex: 1; min-width: 200px; display: flex; flex-direction: column; background: var(--bg-default); }
 .right-pane-head {
   padding: 10px 16px; font-size: 13px; font-weight: 600;
   border-bottom: 1px solid var(--border); background: var(--bg-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;
 }
+
+/* ===== 可拖拽分隔线 ===== */
+.divider {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.divider:hover, .divider.dragging { background: var(--accent); }
 
 .diff-view {
   flex: 1; padding: 10px 0; margin: 0;
@@ -363,6 +382,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 
 /* ===== 危险操作 ===== */
 .danger-text { color: var(--danger); font-weight: 600; }
+.hint-text { font-size: 13px; color: var(--fg-muted); line-height: 1.7; }
 
 /* ===== 输入行 ===== */
 .input-row { display: flex; gap: 8px; }
