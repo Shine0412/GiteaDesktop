@@ -9,6 +9,16 @@ app.disableHardwareAcceleration();
 let server = null;
 let mainWindow = null;
 
+// 单实例锁：避免多个实例各自起服务、并发写同一份状态文件
+const singleInstance = app.requestSingleInstanceLock();
+if (singleInstance) {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+}
+
 function createWindow(port) {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -40,6 +50,7 @@ function createWindow(port) {
 }
 
 app.whenReady().then(() => {
+  if (!singleInstance) return; // 非首个实例：直接退出
   // 原生文件夹选择对话框
   ipcMain.handle('pick-folder', async (_e, title) => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -53,16 +64,19 @@ app.whenReady().then(() => {
     shell.showItemInFolder(targetPath);
   });
 
-  // 优先使用固定端口（localStorage 等按源隔离的存储依赖端口稳定），冲突时递增
-  function startServer(port) {
+  // 优先使用固定端口，冲突时最多尝试 5 个，避免静默漂移导致本地存储错位
+  function startServer(port, attempt = 0) {
     const s = expressApp.listen(port, '127.0.0.1', () => {
       console.log('GITEA_DESKTOP_PORT=' + port);
       server = s;
       createWindow(port);
     });
     s.on('error', (e) => {
-      if (e.code === 'EADDRINUSE') startServer(port + 1);
-      else throw e;
+      if (e.code === 'EADDRINUSE' && attempt < 4) startServer(port + 1, attempt + 1);
+      else {
+        console.error('无法启动本地服务，端口均被占用:', e.message);
+        app.quit();
+      }
     });
   }
   startServer(7100);

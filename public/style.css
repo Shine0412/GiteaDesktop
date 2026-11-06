@@ -23,6 +23,7 @@
   --badge-A-fg: #1a7f37; --badge-A-bg: #dafbe1;
   --badge-D-fg: #d1242f; --badge-D-bg: #ffebe9;
   --badge-U-fg: #0969da; --badge-U-bg: #ddf4ff;
+  --badge-R-fg: #8250df; --badge-R-bg: #fbefff;
   --header-btn-bg: transparent;
   --header-btn-hover: rgba(31,35,40,.08);
 }
@@ -51,6 +52,7 @@ html[data-theme="dark"] {
   --badge-A-fg: #3fb950; --badge-A-bg: rgba(46,160,67,.2);
   --badge-D-fg: #f85149; --badge-D-bg: rgba(248,81,73,.15);
   --badge-U-fg: #4493f8; --badge-U-bg: rgba(56,139,253,.15);
+  --badge-R-fg: #bc8cff; --badge-R-bg: rgba(176,107,255,.15);
   --header-btn-hover: rgba(230,237,243,.1);
 }
 
@@ -183,6 +185,7 @@ body {
 .badge-A { color: var(--badge-A-fg); background: var(--badge-A-bg); }
 .badge-D { color: var(--badge-D-fg); background: var(--badge-D-bg); }
 .badge-U { color: var(--badge-U-fg); background: var(--badge-U-bg); }
+.badge-R { color: var(--badge-R-fg); background: var(--badge-R-bg); }
 .badge-staged { color: var(--badge-A-fg); background: var(--badge-A-bg); }
 
 .discard-btn {

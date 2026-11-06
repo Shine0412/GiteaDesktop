@@ -30,8 +30,9 @@ async function api(path, opts = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(opts.body),
   } : undefined);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || '请求失败');
+  let data;
+  try { data = await res.json(); } catch { data = {}; }
+  if (!res.ok) throw new Error(data.error || `请求失败 (HTTP ${res.status})`);
   return data;
 }
 
@@ -233,9 +234,12 @@ async function openRepo(repoPath) {
 }
 
 async function refreshStatus() {
-  if (!state.current) return;
-  state.status = await api('/api/status?repo=' + encodeURIComponent(state.current));
-  $('#commit-branch').textContent = state.status.current;
+  const target = state.current;
+  if (!target) return;
+  const status = await api('/api/status?repo=' + encodeURIComponent(target));
+  if (target !== state.current) return; // 切仓库后丢弃过期响应
+  state.status = status;
+  $('#commit-branch').textContent = status.current;
   renderStatus();
 }
 
@@ -255,6 +259,7 @@ function badgeOf(code) {
   if (code === '?' || code === 'A') return ['A', 'badge-A'];
   if (code === 'D') return ['D', 'badge-D'];
   if (code === 'U') return ['U', 'badge-U'];
+  if (code === 'R' || code === 'C') return ['R', 'badge-R'];
   return ['M', 'badge-M'];
 }
 
@@ -296,36 +301,35 @@ function renderStatus() {
   const email = cfg.local.email || cfg.global.email || '';
   $('#commit-by').textContent = `以 ${name}${email ? ' <' + email + '>' : ''} 的身份提交`;
 
+  // 单列文件列表（GitHub Desktop 式）：勾选框 = 是否已暂存，状态以服务端为准
   const files = st.files || [];
-  const unstaged = files.filter((f) => !classify(f).staged);
-  const staged = files.filter((f) => classify(f).staged);
+  state.checked = new Set(files.filter((f) => classify(f).staged).map((f) => f.path));
 
   $('#changes-title').textContent = `${files.length} 个更改的文件`;
   const cc = $('#changes-count');
   cc.textContent = files.length;
   cc.classList.toggle('hidden', !files.length);
 
-  const renderItem = (f, isStaged) => {
-    const { code } = classify(f);
+  const renderItem = (f) => {
+    const { staged, code } = classify(f);
     const [txt, cls] = badgeOf(code);
     const parts = f.path.split('/');
     const fname = parts.pop();
     const dir = parts.join('/');
     const checked = state.checked.has(f.path);
     return `
-      <div class="file-item ${state.selectedFile === f.path ? 'selected' : ''}" data-path="${esc(f.path)}" data-staged="${isStaged ? 1 : 0}">
+      <div class="file-item ${state.selectedFile === f.path ? 'selected' : ''}" data-path="${esc(f.path)}" data-staged="${staged ? 1 : 0}">
         <input type="checkbox" class="file-check" data-path="${esc(f.path)}" ${checked ? 'checked' : ''} />
+        <span class="badge ${cls}">${txt}</span>
         <span class="fname">${esc(fname)}</span>
         <span class="fpath">${esc(dir)}</span>
-        ${isStaged ? '<span class="badge badge-staged">已暂存</span>' : `<span class="badge ${cls}">${txt}</span>`}
         <button class="discard-btn" data-path="${esc(f.path)}" title="放弃此文件的更改">✕</button>
       </div>`;
   };
 
-  $('#file-list').innerHTML =
-    (staged.length ? staged.map((f) => renderItem(f, true)).join('') : '') +
-    (unstaged.length ? unstaged.map((f) => renderItem(f, false)).join('') : '') ||
-    '<div class="empty-hint">工作区干净，没有改动 🎉</div>';
+  $('#file-list').innerHTML = files.length
+    ? files.map((f) => renderItem(f)).join('')
+    : '<div class="empty-hint">工作区干净，没有改动 🎉</div>';
 
   $$('.file-item').forEach((el) => {
     el.addEventListener('click', (ev) => {
@@ -339,16 +343,16 @@ function renderStatus() {
   $$('.file-check').forEach((el) => {
     el.addEventListener('change', async () => {
       const p = el.dataset.path;
+      el.disabled = true;
       try {
-        if (el.checked) {
-          await api('/api/stage', { body: { repo: state.current, files: [p] } });
-          state.checked.add(p);
-        } else {
-          await api('/api/unstage', { body: { repo: state.current, files: [p] } });
-          state.checked.delete(p);
-        }
+        const action = el.checked ? '/api/stage' : '/api/unstage';
+        await api(action, { body: { repo: state.current, files: [p] } });
         await refreshStatus();
-      } catch (e) { toast(e.message, 'error'); }
+      } catch (e) {
+        el.checked = !el.checked; // 失败时回滚勾选状态
+        el.disabled = false;
+        toast(e.message, 'error');
+      }
     });
   });
   $$('.discard-btn').forEach((el) => {
@@ -448,9 +452,8 @@ $('#btn-sync').addEventListener('click', async () => {
   if (!state.status) return;
   const mode = $('#btn-sync').dataset.mode;
   if (mode === 'publish') {
-    // 预填建议地址：Gitea 地址 + 当前目录名
-    const repoName = state.current.replace(/\\/g, '/').split('/').pop();
-    $('#publish-url').value = `ssh://git@10.0.0.2:2222/lijizhe/${repoName}.git`;
+    // 预填上次发布的地址（保存在界面状态里），首次发布则留空由用户填写
+    $('#publish-url').value = state.publishUrl || '';
     $('#modal-publish').classList.remove('hidden');
     $('#publish-url').focus();
     return;
@@ -479,6 +482,8 @@ $('#btn-do-publish').addEventListener('click', async () => {
   btn.textContent = '推送中…';
   try {
     await api('/api/publish', { body: { repo: state.current, url } });
+    state.publishUrl = url;
+    saveUiPatch({ publishUrl: url }); // 记住地址，下次发布直接预填
     $('#modal-publish').classList.add('hidden');
     toast('发布成功，已推送到远程', 'success');
     await refreshStatus();
@@ -490,28 +495,51 @@ $('#btn-do-publish').addEventListener('click', async () => {
   }
 });
 
-/* ---------- 历史（中栏列表 + 右栏详情） ---------- */
-async function loadHistory() {
+/* ---------- 历史（中栏列表 + 右栏详情，支持「显示更多」分页） ---------- */
+state.logSkip = 0;
+
+async function loadHistory(reset = true) {
   if (!state.current) return;
   try {
-    const { commits } = await api('/api/log?repo=' + encodeURIComponent(state.current));
-    $('#commit-list').innerHTML = commits.length
-      ? commits.map((c) => `
+    const skip = reset ? 0 : state.logSkip;
+    const { commits, limit } = await api('/api/log?repo=' + encodeURIComponent(state.current) + '&skip=' + skip);
+    if (skip !== state.logSkip) return; // 切仓库后丢弃过期响应
+    const renderCommit = (c) => `
         <div class="commit-item ${state.selectedCommit === c.hash ? 'selected' : ''}" data-hash="${c.hash}">
           <span class="commit-dot">●</span>
           <div class="commit-info">
-            <div class="commit-msg">${esc(c.message.split('\n')[0])}</div>
-            <div class="commit-meta">${esc(c.author_name)} · ${new Date(c.date).toLocaleString('zh-CN')}</div>
+            <div class="commit-msg">${esc(c.message)}</div>
+            <div class="commit-meta">${esc(c.author_name)} · ${new Date(Number(c.date) * 1000).toLocaleString('zh-CN')}</div>
           </div>
           <span class="commit-hash">${c.hash.slice(0, 7)}</span>
-        </div>`).join('')
-      : '<div class="empty-hint">还没有提交记录</div>';
+        </div>`;
+
+    const list = $('#commit-list');
+    if (reset) {
+      list.innerHTML = commits.length ? commits.map(renderCommit).join('') : '<div class="empty-hint">还没有提交记录</div>';
+    } else {
+      list.insertAdjacentHTML('beforeend', commits.map(renderCommit).join(''));
+    }
+    state.logSkip += commits.length;
+    const more = $('#btn-load-more');
+    more.classList.toggle('hidden', commits.length < limit);
+    more.disabled = false;
 
     $$('.commit-item').forEach((el) => {
+      if (el.dataset.bound) return;
+      el.dataset.bound = 1;
       el.addEventListener('click', () => showCommitDetail(el.dataset.hash));
     });
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    $('#btn-load-more').disabled = false;
+    toast(e.message, 'error');
+  }
 }
+
+$('#btn-load-more').addEventListener('click', (e) => {
+  e.target.disabled = true;
+  loadHistory(false);
+});
 
 async function showCommitDetail(hash) {
   state.selectedCommit = hash;

@@ -50,12 +50,12 @@ function scanRepos(dir, depth = 2) {
   return results;
 }
 
-// 错误处理包装
+// 错误处理包装：handler 内显式校验返回 400，git/内部异常返回 500
 const handle = (fn) => async (req, res) => {
   try {
     await fn(req, res);
   } catch (err) {
-    res.status(400).json({ error: err.message || String(err) });
+    res.status(err.status || 500).json({ error: err.message || String(err) });
   }
 };
 
@@ -90,8 +90,9 @@ app.post('/api/clone', handle(async (req, res) => {
   const { url, parentDir } = req.body;
   if (!url || !parentDir) return res.status(400).json({ error: '缺少 url 或 parentDir' });
   if (!fs.existsSync(parentDir)) return res.status(400).json({ error: '目标目录不存在' });
-  await simpleGit().clone(url, path.join(parentDir, repoNameFromUrl(url)));
-  res.json({ ok: true, path: path.join(parentDir, repoNameFromUrl(url)) });
+  const target = path.join(parentDir, repoNameFromUrl(url));
+  await simpleGit().clone(url, target);
+  res.json({ ok: true, path: target });
 }));
 
 function repoNameFromUrl(url) {
@@ -121,13 +122,24 @@ app.get('/api/status', handle(async (req, res) => {
   });
 }));
 
-// 提交历史
+// 提交历史（skip 用于「显示更多」分页，date 用 Unix 时间戳避免时区/格式解析问题）
+// 用 raw 命令 + NUL 分隔符解析，避免 simple-git log 不支持 skip 以及换行/制表符破坏解析
 app.get('/api/log', handle(async (req, res) => {
   const repo = req.query.repo;
   if (!validRepo(repo)) return res.status(400).json({ error: '不是有效的 git 仓库' });
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-  const log = await git(repo).log({ maxCount: limit });
-  res.json({ commits: log.all });
+  const skip = Math.max(parseInt(req.query.skip) || 0, 0);
+  const out = await git(repo).raw([
+    'log',
+    '--skip=' + skip,
+    '--max-count=' + limit,
+    '--format=%H%x00%at%x00%an%x00%s',
+  ]);
+  const commits = out.split('\n').filter(Boolean).map((l) => {
+    const [hash, date, author_name, message] = l.split('\0');
+    return { hash, date, author_name, message };
+  });
+  res.json({ commits, limit });
 }));
 
 // 分支列表
@@ -267,8 +279,13 @@ app.post('/api/discard', handle(async (req, res) => {
   const g = git(repo);
   const st = await g.status();
   if (st.not_added.includes(file)) {
-    // 未跟踪文件：直接删除
-    fs.rmSync(path.join(repo, file), { recursive: true, force: true });
+    // 未跟踪文件：直接删除。目标路径必须解析后仍位于仓库内，防止 ../ 穿越删除仓库外文件
+    const repoReal = path.resolve(repo);
+    const target = path.resolve(repoReal, file);
+    if (target !== repoReal && !target.startsWith(repoReal + path.sep)) {
+      return res.status(400).json({ error: '非法的文件路径' });
+    }
+    fs.rmSync(target, { recursive: true, force: true });
   } else {
     await g.checkout(['--', file]);
   }
@@ -414,18 +431,18 @@ app.post('/api/state', handle(async (req, res) => {
 
 // ---------- 启动 ----------
 
-// 解析命令行参数和 env（支持 npm run dev -- --port 7100 --host 0.0.0.0）
+// 解析命令行参数和 env（支持 npm run dev -- --port 7100）
 function argVal(flag) {
   const i = process.argv.indexOf(flag);
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : null;
 }
 const port = Number(argVal('--port') || process.env.PORT || 7100);
-const host = argVal('--host') || process.env.HOST || '127.0.0.1';
 
-// 直接运行（npm run dev）时自行监听；被 Electron 引入时只导出 app，由主进程决定端口
+// 直接运行（npm run dev）时自行监听；被 Electron 引入时只导出 app，由主进程决定端口。
+// 始终只绑定 127.0.0.1：API 含删除仓库、放弃更改等破坏性操作，绝不能暴露到局域网
 if (require.main === module) {
-  app.listen(port, host, () => {
-    console.log(`Gitea Desktop 已启动: http://${host}:${port}`);
+  app.listen(port, '127.0.0.1', () => {
+    console.log(`Gitea Desktop 已启动: http://127.0.0.1:${port}`);
   });
 }
 

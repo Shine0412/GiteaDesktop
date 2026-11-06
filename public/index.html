@@ -97,6 +97,7 @@
 
         <div id="tab-history" class="tab-panel hidden">
           <div id="commit-list" class="commit-list"></div>
+          <button id="btn-load-more" class="btn btn-block hidden" style="margin:8px">显示更多</button>
         </div>
 
         <div id="tab-stashes" class="tab-panel hidden">
@@ -147,7 +148,7 @@
       </div>
       <div id="mtab-clone" class="mtab-panel hidden">
         <label>仓库地址（SSH 或 HTTPS）</label>
-        <input id="clone-url" type="text" placeholder="ssh://git@10.0.0.2:2222/user/repo.git" />
+        <input id="clone-url" type="text" placeholder="ssh://git@your-gitea:2222/user/repo.git" />
         <label>克隆到目录</label>
         <div class="input-row">
           <input id="clone-dir" type="text" placeholder="例如 C:\Users\you\code" />
@@ -233,14 +234,14 @@
             <li>本机需要安装 <strong>Git</strong>（本工具的所有操作都通过它完成）。</li>
             <li>确认你有 SSH 密钥：检查 <code>C:\Users\你的用户名\.ssh\id_rsa.pub</code> 是否存在。没有就在终端运行 <code>ssh-keygen -t rsa -b 3072</code> 一路回车生成。</li>
             <li>打开 <code>id_rsa.pub</code>，复制全部内容，到 Gitea 网页端「设置 → SSH / GPG 密钥」里添加。</li>
-            <li>验证：终端运行 <code>ssh -T -p 2222 git@10.0.0.2</code>，看到 <em>Hi there, 你的用户名!</em> 即配置成功。</li>
+            <li>验证：终端运行 <code>ssh -T -p 端口 git@你的Gitea地址</code>（例如 <code>ssh -T -p 2222 git@gitea.example.com</code>），看到 <em>Hi there, 你的用户名!</em> 即配置成功。</li>
           </ol>
         </section>
         <section>
           <h3>② 把仓库加进来</h3>
           <p>左上角「+ 添加」提供四种方式，路径都可以点「浏览…」直接选文件夹：</p>
           <ul>
-            <li><strong>克隆</strong>：地址填 <code>ssh://git@10.0.0.2:2222/用户名/仓库名.git</code>（在 Gitea 仓库页面可复制）；</li>
+            <li><strong>克隆</strong>：地址填 <code>ssh://git@你的Gitea地址:端口/用户名/仓库名.git</code>（在 Gitea 仓库页面可复制）；</li>
             <li><strong>扫描目录</strong>：选一个代码总目录，自动找出里面所有 git 仓库；</li>
             <li><strong>打开</strong>：单独添加一个已有仓库；</li>
             <li><strong>新建</strong>：从零创建本地仓库（自动完成首次提交）。</li>
@@ -277,7 +278,7 @@
       <div class="modal-body">
         <p class="hint-text">该仓库还没有配置远程。请先在 Gitea 上创建一个<strong>同名空仓库</strong>（不要勾选初始化 README），然后把它的 SSH 地址填到下面：</p>
         <label>远程地址（SSH）</label>
-        <input id="publish-url" type="text" placeholder="ssh://git@10.0.0.2:2222/lijizhe/仓库名.git" />
+        <input id="publish-url" type="text" placeholder="ssh://git@你的Gitea地址:端口/用户名/仓库名.git" />
         <button id="btn-do-publish" class="btn btn-primary btn-block">添加远程并推送</button>
       </div>
     </div>
